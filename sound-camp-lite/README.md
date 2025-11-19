@@ -1,73 +1,184 @@
-# React + TypeScript + Vite
+# Festival Tycoon: Sound Camp Builder (Lite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A tiny **festival sound camp sandbox** built with **React + TypeScript + Vite**.
 
-Currently, two official plugins are available:
+Design your own sound camp layout on a tile grid, wire up generators, manage fuel and power loads, balance vibe vs noise, grow your crowd, and complete objectives — all in a lightweight browser-based prototype.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+> This is a small but surprisingly deep toy project. The code is written to be **easy to read, easy to mod, and easy to extend**.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## ✨ Features
 
-## Expanding the ESLint configuration
+* 🎛️ **Palette of placeable items**
+  Small/large speakers, DJ deck, generator, light tree, chill tent.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+* ⚡ **Power & wiring system**
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+  * Generators supply limited power.
+  * Items that need power must be wired.
+  * Fuel drains over time — faster with heavier loads.
+  * Refuel from the inspector panel.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+* 🎚️ **Vibe / Noise / Crowd simulation**
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+  * Synergy bonuses (tents near lights, speakers near decks).
+  * Penalties (speaker overlap, tents near large speakers).
+  * Noise soft-cap affecting vibe.
+  * Crowd grows/shrinks based on vibe.
+
+* ⏱️ **Festival time system**
+  Play/pause simulation, day/night cycles, objective deadlines.
+
+* 🧩 **Objectives / Milestones**
+  Automatically tracked goals with deadlines, rewards, and fail states.
+  Objective summary included in screenshots.
+
+* 💾 **Save / Load / Autosave**
+  Multiple named saves + automatic session resume.
+
+* 📸 **Screenshot export**
+  Captures the board + HUD + objective summary.
+
+* 🎧 **Tiny dynamic audio engine**
+  Background layers that fade in/out based on vibe tier.
+
+* 🧰 **Quality-of-life**
+  Undo stack, rotation, nudging, power toggling, keyboard shortcuts, help overlay.
+
+---
+
+## 🧱 Tech Stack
+
+* **React 18**
+* **TypeScript**
+* **Vite** (dev server & bundler)
+* Custom canvas renderer
+* No external UI frameworks
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+* **Node.js ≥ 18**
+* **npm** (or `pnpm`/`yarn`)
+
+### Install & Run (Development)
+
+```bash
+git clone <your-repo-url> festival-tycoon-lite
+cd festival-tycoon-lite
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open the printed URL (usually `http://localhost:5173`).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Build for Production
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
+npm run preview
 ```
+
+---
+
+## 🕹️ Gameplay Overview
+
+### Placement
+
+* Select an item from the **Palette**
+* Click on the grid to place it
+* Click an item to select it
+
+### Generators & Power
+
+* Press **C** or click **Connect** to start wiring
+* Click a device to attach power
+* Press **F** or use inspector to toggle generator ON/OFF
+* Fuel drains while running; refuel for **$25**
+
+### Simulation
+
+* **Space** toggles Play/Pause
+* Money increases with crowd size
+* Crowd size depends on vibe
+* Vibe depends on layout synergies, penalties, spacing, power, and noise
+
+### Objectives
+
+* Goals listed in the **right sidebar**
+* Completion gives rewards
+* Failure occurs after deadline
+* Summary appears in screenshots
+
+### Keyboard Shortcuts
+
+* **R** — Rotate item
+* **Delete / Backspace** — Remove item
+* **Arrow Keys** — Nudge
+* **Space** — Play/Pause
+* **F** — Toggle generator
+* **C** — Connect wiring
+* **S** — Screenshot
+* **H** — Help overlay
+* **Esc** — Cancel selection
+
+---
+
+## 🗂️ Project Structure
+
+```text
+src/
+  main.tsx            # App entry point
+  App.tsx             # Main component, layout, game loop, UI, canvas rendering
+  index.css           # Global styles
+
+  game/
+    constants.ts      # Item definitions, tile/grid sizes, generator settings
+    types.ts          # Shared types (PlacedItem, Wire, GameState, etc.)
+    logic.ts          # Scoring, power logic, vibe field, placement rules
+    audio.ts          # Tiny WebAudio-based ambient tier system
+    storage.ts        # Autosave, manual save/load, session state builders
+    milestones.ts     # Objectives, conditions, deadlines, rewards
+```
+
+### Editing the Game
+
+* **Item stats / costs / ranges** → `game/constants.ts`
+* **Scoring / synergies / penalties** → `game/logic.ts`
+* **Power, wiring, fuel drain** → `game/logic.ts`
+* **Objectives** → `game/milestones.ts`
+* **Audio** → `game/audio.ts`
+
+---
+
+## 🧩 Roadmap / Future Ideas
+
+* Additional item types (decor, vendors, utilities)
+* Multi-day festival modes
+* Crowd sprites or flocking behavior
+* Weather or noise zones
+* More generator types (solar, batteries)
+* Export/import festival presets
+
+---
+
+## 🤝 Contributing
+
+Pull requests welcome! Please keep code style consistent with existing files:
+
+* Functional React components
+* TypeScript strict mode
+* No external UI frameworks
+* Canvas rendering kept simple and readable
+
+Open an issue if you have feature ideas or encounter bugs.
+
+---
+
+## 📜 License
+
+This app has no license at this time.
