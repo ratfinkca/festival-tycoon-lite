@@ -419,7 +419,13 @@ export default function App() {
       if (it.defKey === "genny") {
         const r = (ITEM_DEFS.genny.range ?? 4) * TILE + TILE / 2;
         ctx.beginPath();
-        ctx.arc(it.x * TILE + TILE / 2, it.y * TILE + TILE / 2, r, 0, Math.PI * 2);
+        ctx.arc(
+          it.x * TILE + TILE / 2,
+          it.y * TILE + TILE / 2,
+          r,
+          0,
+          Math.PI * 2
+        );
         ctx.fill();
       }
     }
@@ -683,15 +689,23 @@ export default function App() {
         setShowHelp((s) => !s);
       } else if (e.key.toLowerCase() === "s") {
         e.preventDefault();
-        doScreenshot(canvasRef.current, {
-          money: Math.floor(money),
-          vibe,
-          noise,
-          crowd: Math.floor(crowd),
-          tier: vibeToTier(vibe),
-          day: dayNum,
-          time: fmtClock(timeMin),
-        });
+        doScreenshot(
+          canvasRef.current,
+          {
+            money: Math.floor(money),
+            vibe,
+            noise,
+            crowd: Math.floor(crowd),
+            tier: vibeToTier(vibe),
+            day: dayNum,
+            time: fmtClock(timeMin),
+          },
+          {
+            completed: goals.filter((g) => g.status === "completed").length,
+            failed: goals.filter((g) => g.status === "failed").length,
+            total: goals.length,
+          }
+        );
       } else if (sel && sel.defKey === "genny" && e.key.toLowerCase() === "f") {
         e.preventDefault();
         pushUndo();
@@ -710,7 +724,7 @@ export default function App() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, items, money, vibe, noise, crowd, dayNum, timeMin]);
+  }, [selected, items, money, vibe, noise, crowd, dayNum, timeMin, goals]);
 
   // Undo helpers
   function pushUndo() {
@@ -794,7 +808,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* MAIN */}
+      {/* MAIN (center column: HUD + board + inspector) */}
       <div style={styles.main}>
         <div style={styles.topBar}>
           <div>
@@ -852,15 +866,24 @@ export default function App() {
               type="button"
               style={styles.smallBtn}
               onClick={() =>
-                doScreenshot(canvasRef.current, {
-                  money: Math.floor(money),
-                  vibe,
-                  noise,
-                  crowd: Math.floor(crowd),
-                  tier,
-                  day: dayNum,
-                  time: fmtClock(timeMin),
-                })
+                doScreenshot(
+                  canvasRef.current,
+                  {
+                    money: Math.floor(money),
+                    vibe,
+                    noise,
+                    crowd: Math.floor(crowd),
+                    tier,
+                    day: dayNum,
+                    time: fmtClock(timeMin),
+                  },
+                  {
+                    completed: goals.filter((g) => g.status === "completed")
+                      .length,
+                    failed: goals.filter((g) => g.status === "failed").length,
+                    total: goals.length,
+                  }
+                )
               }
               title="Screenshot (S)"
             >
@@ -954,9 +977,53 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* Inspector under board (center column) */}
+        <div style={{ marginTop: 12 }}>
+          <h3 style={styles.h3}>Inspector</h3>
+          {selected ? (
+            <SelectedInspector
+              item={items.find((i) => i.id === selected)!}
+              powerMap={powerMap}
+              genLoad={genLoads[selected!] ?? 0}
+              onToggleGenerator={(id) => {
+                pushUndo();
+                setItems((arr) =>
+                  arr.map((i) =>
+                    i.id === id ? { ...i, on: !i.on } : i
+                  )
+                );
+              }}
+              onRefuel={(id) => {
+                if (money < 25) {
+                  alert("Not enough money to refuel!");
+                  return;
+                }
+                pushUndo();
+                setMoney((m) => m - 25);
+                setItems((arr) =>
+                  arr.map((i) =>
+                    i.id === id
+                      ? {
+                          ...i,
+                          fuel: Math.min(100, (i.fuel ?? 100) + 50),
+                        }
+                      : i
+                  )
+                );
+              }}
+              onConnectStart={(id) => setConnectFromGenId(id)}
+              connectActive={connectFromGenId === selected}
+            />
+          ) : (
+            <div style={{ opacity: 0.7 }}>
+              Select an item on the canvas.
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* RIGHT BAR */}
+      {/* RIGHT BAR = Goals */}
       <div style={styles.rightBar}>
         <h3 style={styles.h3}>Goals</h3>
         <div style={{ ...styles.card, marginBottom: 12 }}>
@@ -1012,56 +1079,12 @@ export default function App() {
             })}
           </div>
         </div>
-
-        <h3 style={styles.h3}>Inspector</h3>
-        {selected ? (
-          <SelectedInspector
-            item={items.find((i) => i.id === selected)!}
-            powerMap={powerMap}
-            genLoad={genLoads[selected!] ?? 0}
-            onToggleGenerator={(id) => {
-              pushUndo();
-              setItems((arr) =>
-                arr.map((i) =>
-                  i.id === id ? { ...i, on: !i.on } : i
-                )
-              );
-            }}
-            onRefuel={(id) => {
-              if (money < 25) {
-                alert("Not enough money to refuel!");
-                return;
-              }
-              pushUndo();
-              setMoney((m) => m - 25);
-              setItems((arr) =>
-                arr.map((i) =>
-                  i.id === id
-                    ? {
-                        ...i,
-                        fuel: Math.min(
-                          100,
-                          (i.fuel ?? 100) + 50
-                        ),
-                      }
-                    : i
-                )
-              );
-            }}
-            onConnectStart={(id) => setConnectFromGenId(id)}
-            connectActive={connectFromGenId === selected}
-          />
-        ) : (
-          <div style={{ opacity: 0.7 }}>
-            Select an item on the canvas.
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-// Screenshot with HUD
+// Screenshot with HUD and objectives summary
 function doScreenshot(
   canvas: HTMLCanvasElement | null,
   hud?: {
@@ -1072,6 +1095,11 @@ function doScreenshot(
     tier: number;
     day?: number;
     time?: string;
+  },
+  objectives?: {
+    completed: number;
+    failed: number;
+    total: number;
   }
 ) {
   if (!canvas) return;
@@ -1108,6 +1136,32 @@ function doScreenshot(
     lines.forEach((t, i) =>
       ctx.fillText(t, pad + 10, pad + 44 + i * 18)
     );
+  }
+
+  if (objectives) {
+    const pad = 12;
+    const panelW = 220;
+    const panelH = 80;
+    const x = out.width - pad - panelW;
+    const y = pad;
+
+    ctx.fillStyle = "rgba(10,12,28,0.86)";
+    ctx.strokeStyle = "#2b3172";
+    ctx.lineWidth = 1;
+    ctx.fillRect(x, y, panelW, panelH);
+    ctx.strokeRect(x, y, panelW, panelH);
+
+    ctx.fillStyle = "#e7ebff";
+    ctx.font = "bold 14px system-ui, sans-serif";
+    ctx.fillText("Objectives", x + 10, y + 20);
+
+    ctx.font = "13px system-ui, sans-serif";
+    ctx.fillText(
+      `Completed: ${objectives.completed}/${objectives.total}`,
+      x + 10,
+      y + 40
+    );
+    ctx.fillText(`Failed: ${objectives.failed}`, x + 10, y + 58);
   }
 
   const url = out.toDataURL("image/png");
