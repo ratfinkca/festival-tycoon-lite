@@ -78,6 +78,11 @@ export default function App() {
   const agentsRef = useRef<Agent[]>([]);
   const simTimeRef = useRef(0);
 
+  //Check distance of one tile to another
+  function tileDist(ax: number, ay: number, bx: number, by: number) {
+    return Math.hypot(ax - bx, ay - by);
+  }
+
   // Refs for loop
   const runningRef = useRef(running);
   const crowdRef = useRef(crowd);
@@ -108,6 +113,28 @@ export default function App() {
     () => scoreAll(items, powerMap),
     [items, powerMap]
   );
+  const musicLevel = useMemo(() => {
+    const decks = items.filter(
+      (i) => i.defKey === "deck" && (powerMap[i.y]?.[i.x] ?? false)
+    );
+    const speakers = items.filter(
+      (i) =>
+      (i.defKey === "speaker_s" || i.defKey === "speaker_l") &&
+      (powerMap[i.y]?.[i.x] ?? false)
+    );
+    if (decks.length === 0 || speakers.length === 0) return 0;
+
+    let score = 0;
+    for (const s of speakers) {
+      const nearDeck = decks.some(
+        (d) => tileDist(d.x, d.y, s.x, s.y) <= 3
+      );
+      if (!nearDeck) continue;
+      //large speakers count more
+      score += s.defKey === "speaker_l" ? 2 : 1;
+    }
+    return score;
+  }, [items, powerMap]);
 
   // Track powerMap for drawing helpers if needed
   const powerMapRef = useRef<boolean[][]>([]);
@@ -115,17 +142,44 @@ export default function App() {
     powerMapRef.current = powerMap;
   }, [powerMap]);
 
+  // Feed generator state to audio hummmmmmmmm
+  useEffect(() => {
+    const gens = items.filter((i) => i.defKey === "genny");
+    const running = gens.filter((g) => g.on);
+
+    if (running.length === 0) {
+      try {
+        audioEngine.setGeneratorState(0, null);
+      } catch {/* ignore */}
+      return;
+    }
+
+    const minFuelRatio = 
+    running.length > 0
+      ? Math.min(...running.map((g) => (g.fuel ?? 100) / 100))
+      : null;
+
+    try {
+      audioEngine.setGeneratorState(running.length, minFuelRatio);
+    } catch { /* ignore */}
+  }, [items]);
+
   // Update vibe/noise + audio tier
   useEffect(() => {
     setVibe(scoring.vibe);
     setNoise(scoring.noise);
     crowdTargetRef.current = clamp(scoring.vibe * 4, 0, 500);
     try {
-      audioEngine.setTier(vibeToTier(scoring.vibe));
+      audioEngine.updateAmbient({
+        vibe: scoring.vibe,
+        noise: scoring.noise,
+        crowd: crowdTargetRef.current,
+        musicLevel,
+      });
     } catch {
-      // ignore
+      /* ignore audio errors */
     }
-  }, [scoring]);
+  }, [scoring, musicLevel]);
 
   // Festival clock display
   function fmtClock(mins: number) {
@@ -356,6 +410,9 @@ export default function App() {
 
             if (g.condition(snap)) {
               changed = true;
+              try {
+                audioEngine.playGoalComplete();
+              } catch {/* ignore */}
               if (toast === null) {
                 setToast(`✅ ${g.title} +$${g.reward}`);
               }
@@ -365,6 +422,9 @@ export default function App() {
 
             if (isPast(g.deadlineDay, g.deadlineMin, nowDay, nowMin)) {
               changed = true;
+              try {
+                audioEngine.playGoalFail();
+              } catch {/* ignore */}
               if (toast === null) {
                 setToast(`❌ Failed: ${g.title}`);
               }
@@ -624,6 +684,11 @@ export default function App() {
       y: ty,
       rot: 0,
     };
+
+    try {
+      audioEngine.playPlace(def.key);
+    } catch {/* ignore */}
+
     const newItem: PlacedItem =
       def.key === "genny"
         ? { ...base, on: false, fuel: 100 }
@@ -654,6 +719,9 @@ export default function App() {
             m +
             Math.floor(ITEM_DEFS[sel.defKey].cost * 0.6)
         );
+        try {
+          audioEngine.playRemove();
+        } catch {/* ignore */}
         setItems((arr) => arr.filter((it) => it.id !== selected));
         setWires((ws) =>
           ws.filter(
@@ -710,9 +778,14 @@ export default function App() {
         e.preventDefault();
         pushUndo();
         setItems((arr) =>
-          arr.map((i) =>
-            i.id === sel.id ? { ...i, on: !i.on } : i
-          )
+          arr.map((i) => {
+            if (i.id !== sel.id) return i;
+            const newOn = !i.on;
+            try {
+              audioEngine.playGenToggle(newOn);
+            } catch {/* ignore */}
+            return { ...i, on: newOn };
+          })
         );
       } else if (sel && sel.defKey === "genny" && e.key.toLowerCase() === "c") {
         setConnectFromGenId(sel.id);
@@ -737,14 +810,46 @@ export default function App() {
     setSelected(null);
   }
   function clearAll() {
-    if (!confirm("Clear layout?")) return;
-    pushUndo();
-    setItems([]);
-    setSelected(null);
-    setWires([]);
-    setMoney(START_MONEY);
-    sessionStorage.removeItem("scb:resumePrompted");
+  if (
+    !confirm(
+      "Reset game? This will clear your layout, reset time, goals, and stats."
+    )
+  ) {
+    return;
   }
+
+  // Clear stacks and refs
+  undoStack.current = [];
+  agentsRef.current = [];
+  simTimeRef.current = 0;
+  crowdTargetRef.current = 0;
+  econTsRef.current = null;
+  genLoadsRef.current = {};
+
+  // Core state reset
+  setItems([]);
+  setWires([]);
+  setSelected(null);
+  setMoney(START_MONEY);
+  setVibe(0);
+  setNoise(0);
+  setCrowd(0);
+
+  // Time + sim
+  setDayNum(1);
+  setTimeMin(0);
+  setRunning(false);
+
+  // Goals & UI
+  setGoals(defaultGoals());
+  setToast(null);
+  setConnectFromGenId(null);
+  setHoverGhost(null);
+  setHoverItemId(null);
+
+  // So the “resume?” dialog behaves sensibly on next load
+  sessionStorage.removeItem("scb:resumePrompted");
+}
 
   const tier = useMemo(() => vibeToTier(vibe), [vibe]);
 
@@ -890,12 +995,13 @@ export default function App() {
               Screenshot
             </button>
             <button
-              type="button"
-              style={styles.smallBtn}
-              onClick={clearAll}
-            >
-              Clear
-            </button>
+            style={styles.smallBtn}
+            onClick={clearAll}
+            title="Restart the game"
+          >
+            Restart
+          </button>
+
             <button
               type="button"
               style={styles.smallBtn}
@@ -989,9 +1095,14 @@ export default function App() {
               onToggleGenerator={(id) => {
                 pushUndo();
                 setItems((arr) =>
-                  arr.map((i) =>
-                    i.id === id ? { ...i, on: !i.on } : i
-                  )
+                  arr.map((i) => {
+                    if (i.id !== id) return i;
+                    const newOn = !i.on;
+                    try {
+                      audioEngine.playGenToggle(newOn);
+                    } catch {/* ignore */}
+                    return { ...i, on: newOn };
+                  })
                 );
               }}
               onRefuel={(id) => {
